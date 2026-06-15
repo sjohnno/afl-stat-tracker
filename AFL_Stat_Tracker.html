@@ -74,7 +74,7 @@ body { font-family: var(--font-sans); padding: 0; }
 .cbtn-plus { border-color: #0F6E56; color: #0F6E56; }
 .cbtn-minus { border-color: #993C1D; color: #993C1D; }
 .cbtn.disabled { opacity: 0.2; pointer-events: none; }
-.sval { font-size: 18px; font-weight: 500; color: var(--color-text-primary); flex: 1; text-align: center; font-variant-numeric: tabular-nums; display: flex; align-items: center; justify-content: center; }
+.sval { font-size: 24px; font-weight: 500; color: var(--color-text-primary); flex: 1; text-align: center; font-variant-numeric: tabular-nums; display: flex; align-items: center; justify-content: center; }
 .player-totals { background: var(--color-background-primary); border-radius: var(--border-radius-md); padding: 7px 8px; border: 0.5px solid var(--color-border-tertiary); }
 .totals-name { font-size: 11px; font-weight: 500; color: var(--color-text-primary); margin-bottom: 3px; }
 .totals-line { font-size: 11px; color: var(--color-text-secondary); line-height: 1.6; }
@@ -175,7 +175,7 @@ footer.credit { text-align:center; font-size:11px; color: var(--color-text-secon
     <div style="display:flex;flex-direction:column;gap:10px;margin-top:6px">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
         <span style="font-size:13px;color:var(--color-text-primary)">Quarter length (mins, 0 = stopwatch)</span>
-        <input type="number" id="quarter-mins" min="0" max="60" value="20" style="width:60px;padding:5px 8px;border-radius:var(--border-radius-md);border:0.5px solid var(--color-border-secondary);font-size:14px;text-align:center;background:var(--color-background-primary);color:var(--color-text-primary);" />
+        <input type="number" id="quarter-mins" min="0" max="60" value="0" style="width:60px;padding:5px 8px;border-radius:var(--border-radius-md);border:0.5px solid var(--color-border-secondary);font-size:14px;text-align:center;background:var(--color-background-primary);color:var(--color-text-primary);" />
       </div>
       <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
         <span style="font-size:13px;color:var(--color-text-primary)">Sound at zero</span>
@@ -264,10 +264,10 @@ footer.credit { text-align:center; font-size:11px; color: var(--color-text-secon
 
 <script>
 // ---- Timer state ----
-let timerSeconds = 20 * 60; // will be overridden by saved state or quarter length setting
+let timerSeconds = 0; // default stopwatch mode
 let timerRunning = false;
 let timerInterval = null;
-let quarterLengthMins = 20;
+let quarterLengthMins = 0; // 0 = stopwatch by default
 let soundEnabled = true;
 let fantasyEnabled = true;
 let timerAtZero = false;
@@ -297,19 +297,24 @@ function playBeep(){
   if(!soundEnabled)return;
   try{
     const ctx=new(window.AudioContext||window.webkitAudioContext)();
-    // 3 groups of 3 beeps: group 0 at 0s, group 1 at 1.2s, group 2 at 2.4s
-    [0, 1.2, 2.4].forEach(groupOffset=>{
-      [0, 0.3, 0.6].forEach(beepOffset=>{
-        const t = ctx.currentTime + groupOffset + beepOffset;
-        const osc=ctx.createOscillator();
-        const gain=ctx.createGain();
-        osc.connect(gain);gain.connect(ctx.destination);
-        osc.frequency.value=880;
-        gain.gain.setValueAtTime(0.4, t);
-        gain.gain.exponentialRampToValueAtTime(0.001, t+0.22);
-        osc.start(t);
-        osc.stop(t+0.22);
-      });
+    const totalDuration=3.6;
+    // AFL siren: a rising/falling wail that cycles 3 times
+    [0, 1.2, 2.4].forEach(offset=>{
+      const osc=ctx.createOscillator();
+      const gain=ctx.createGain();
+      osc.connect(gain); gain.connect(ctx.destination);
+      osc.type='sawtooth';
+      // Siren wail: ramp up from 600Hz to 1100Hz then back down over 1 second
+      const t=ctx.currentTime+offset;
+      osc.frequency.setValueAtTime(600, t);
+      osc.frequency.linearRampToValueAtTime(1100, t+0.45);
+      osc.frequency.linearRampToValueAtTime(600, t+0.9);
+      gain.gain.setValueAtTime(0, t);
+      gain.gain.linearRampToValueAtTime(0.35, t+0.05);
+      gain.gain.setValueAtTime(0.35, t+0.85);
+      gain.gain.linearRampToValueAtTime(0, t+1.0);
+      osc.start(t);
+      osc.stop(t+1.0);
     });
   }catch(e){}
 }
@@ -687,7 +692,7 @@ function timerPressStart(){
   timerPressTimer=setTimeout(()=>{
     timerDidLongPress=true;
     document.getElementById('timer-reset-modal').classList.add('open');
-  },1500);
+  },800);
 }
 function timerPressEnd(){
   if(timerPressTimer){clearTimeout(timerPressTimer);timerPressTimer=null;}
@@ -756,6 +761,9 @@ document.getElementById('pc-row').addEventListener('click',e=>{
   numPlayers=parseInt(btn.dataset.n);
   document.querySelectorAll('.pc-btn').forEach(b=>b.classList.toggle('active',parseInt(b.dataset.n)===numPlayers));
   buildUI();render();
+  // Re-apply fantasy visibility after rebuild
+  const fa=document.getElementById('fantasy-area');
+  if(fa)fa.style.display=fantasyEnabled?'':'none';
   saveState();
 });
 
@@ -825,19 +833,43 @@ document.getElementById('save-btn').addEventListener('click', ()=>{
 });
 
 document.getElementById('export-btn').addEventListener('click',()=>{
-  if(!savedGames.length){alert('No saved games to export yet.');return;}
+  const round=document.getElementById('round-input').value.trim();
+  const opp=document.getElementById('opp-input').value.trim();
+  const today=new Date().toLocaleDateString();
+
   const headers=['Date','Player','Round','Opponent','Kicks','Marks','Handballs','Tackles',
     'Frees For','Frees Against','Goals','Behinds','Disposals','Score','Fantasy Points',
     'Q1 Kicks','Q1 HB','Q1 Goals','Q1 Behinds','Q2 Kicks','Q2 HB','Q2 Goals','Q2 Behinds',
     'Q3 Kicks','Q3 HB','Q3 Goals','Q3 Behinds','Q4 Kicks','Q4 HB','Q4 Goals','Q4 Behinds'];
   const rows=[headers];
-  const today=new Date().toLocaleDateString();
-  savedGames.forEach(g=>{g.players.forEach(p=>{rows.push([today,p.name,g.round||'',g.opp||'',
-    p.kicks,p.marks,p.handballs,p.tackles,p.freesFor,p.freesAga,p.goals,p.behinds,p.disposals,p.score,p.fantasy,
-    p.qb[0].kicks,p.qb[0].handballs,p.qb[0].goals,p.qb[0].behinds,
-    p.qb[1].kicks,p.qb[1].handballs,p.qb[1].goals,p.qb[1].behinds,
-    p.qb[2].kicks,p.qb[2].handballs,p.qb[2].goals,p.qb[2].behinds,
-    p.qb[3].kicks,p.qb[3].handballs,p.qb[3].goals,p.qb[3].behinds]);});});
+
+  // Helper to add player rows
+  function addPlayerRows(players, roundVal, oppVal){
+    players.forEach(p=>{
+      rows.push([today,p.name,roundVal||'',oppVal||'',
+        p.kicks,p.marks,p.handballs,p.tackles,p.freesFor,p.freesAga,p.goals,p.behinds,p.disposals,p.score,p.fantasy,
+        p.qb[0].kicks,p.qb[0].handballs,p.qb[0].goals,p.qb[0].behinds,
+        p.qb[1].kicks,p.qb[1].handballs,p.qb[1].goals,p.qb[1].behinds,
+        p.qb[2].kicks,p.qb[2].handballs,p.qb[2].goals,p.qb[2].behinds,
+        p.qb[3].kicks,p.qb[3].handballs,p.qb[3].goals,p.qb[3].behinds]);
+    });
+  }
+
+  // Include current unsaved game if any stats have been entered
+  const currentPlayers=Array.from({length:numPlayers},(_,p)=>{
+    const t=totals(p);
+    return{name:pName(p),round,opp,kicks:t.kicks,marks:t.marks,handballs:t.handballs,tackles:t.tackles,
+      freesFor:t.freesFor,freesAga:t.freesAga,goals:t.goals,behinds:t.behinds,
+      disposals:disp(t),score:score(t),fantasy:fantasy(t),qb:gameData[p].map(q=>({...q}))};
+  });
+  const hasCurrentStats=currentPlayers.some(p=>p.disposals>0||p.goals>0||p.tackles>0);
+  if(hasCurrentStats) addPlayerRows(currentPlayers, round, opp);
+
+  // Include all saved games
+  savedGames.forEach(g=>addPlayerRows(g.players, g.round, g.opp));
+
+  if(rows.length===1){alert('No stats to export yet.');return;}
+
   const csv=rows.map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
   const blob=new Blob([csv],{type:'text/csv'});
   const url=URL.createObjectURL(blob);
@@ -870,7 +902,7 @@ function attachLongPress(el, idx){
       el.classList.remove('pressing');
       deleteTargetIndex=idx;
       document.getElementById('delete-modal').classList.add('open');
-    },600);
+    },2000);
   };
   const cancel=()=>{el.classList.remove('pressing');clearTimeout(timer);};
   el.addEventListener('touchstart',start,{passive:true});
@@ -926,7 +958,7 @@ if(saved){
     STATS.forEach(s=>{if(!ordered.find(o=>o.key===s.key))ordered.push(s);});
     STATS=ordered;
   }
-  if(saved.quarterLengthMins) quarterLengthMins=saved.quarterLengthMins;
+  if(saved.quarterLengthMins!==undefined) quarterLengthMins=saved.quarterLengthMins;
   if(saved.soundEnabled!==undefined) soundEnabled=saved.soundEnabled;
   if(saved.fantasyEnabled!==undefined) fantasyEnabled=saved.fantasyEnabled;
   if(saved.timestampEnabled!==undefined) timestampEnabled=saved.timestampEnabled;
@@ -982,6 +1014,19 @@ if('serviceWorker' in navigator){
     navigator.serviceWorker.register('./sw.js').catch(()=>{});
   });
 }
+
+// Intercept Android back button — push a history state so back doesn't close the app
+window.addEventListener('load',()=>{
+  history.pushState({page:'app'},'AFL Stat Tracker');
+});
+window.addEventListener('popstate',e=>{
+  // Push another state to prevent the back button from navigating away
+  history.pushState({page:'app'},'AFL Stat Tracker');
+  // Close any open modals instead
+  document.querySelectorAll('.modal-overlay.open').forEach(m=>m.classList.remove('open'));
+  // Close settings if open
+  document.getElementById('settings-panel').classList.remove('open');
+});
 
 </script>
 </body>
