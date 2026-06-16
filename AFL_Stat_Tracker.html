@@ -27,7 +27,6 @@
 * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
 html, body { background: var(--color-background-secondary); }
 body { font-family: var(--font-sans); padding: 0; }
-.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0,0,0,0); }
 
 #app { padding: 10px; font-family: var(--font-sans); position: relative; max-width: 480px; margin: 0 auto; }
 #header { border-radius: var(--border-radius-lg); padding: 10px 12px; margin-bottom: 10px; background: #003087; }
@@ -133,7 +132,6 @@ footer.credit { text-align:center; font-size:11px; color: var(--color-text-secon
 </head>
 <body>
 <div id="app">
-  <h2 class="sr-only">AFL stat tracker with Google Forms auto-save</h2>
   <div id="header">
     <h1>AFL Stat Tracker</h1>
     <div class="meta-row">
@@ -270,7 +268,6 @@ let timerInterval = null;
 let quarterLengthMins = 0; // 0 = stopwatch by default
 let soundEnabled = true;
 let fantasyEnabled = true;
-let timerAtZero = false;
 let timestampEnabled = true;
 
 function getStamp(){
@@ -297,7 +294,6 @@ function playBeep(){
   if(!soundEnabled)return;
   try{
     const ctx=new(window.AudioContext||window.webkitAudioContext)();
-    const totalDuration=3.6;
     // AFL siren: a rising/falling wail that cycles 3 times
     [0, 1.2, 2.4].forEach(offset=>{
       const osc=ctx.createOscillator();
@@ -336,7 +332,6 @@ function tickTimer(){
   } else {
     timerSeconds--;
     if(wasPositive&&timerSeconds===0){
-      timerAtZero=true;
       playBeep();
       const btn=document.getElementById('timer-btn');
       if(btn){
@@ -365,7 +360,6 @@ function pauseTimer(){
 function resetTimerToStart(){
   pauseTimer();
   timerSeconds=quarterLengthMins*60;
-  timerAtZero=false;
   const btn=document.getElementById('timer-btn');
   if(btn)btn.classList.remove('pulsing','overtime');
   updateTimerDisplay();
@@ -997,7 +991,6 @@ if(saved){
 
 // Apply timer/sound/fantasy settings to UI
 document.getElementById('quarter-mins').value=quarterLengthMins;
-if(!saved) timerSeconds=quarterLengthMins*60;
 document.getElementById('sound-toggle').classList.toggle('on',soundEnabled);
 document.getElementById('fantasy-toggle').classList.toggle('on',fantasyEnabled);
 document.getElementById('timestamp-toggle').classList.toggle('on',timestampEnabled);
@@ -1008,23 +1001,20 @@ updateTimerDisplay();
 renderLog();
 saveState();
 
-// Register service worker for PWA/offline support
-if('serviceWorker' in navigator){
-  window.addEventListener('load', ()=>{
-    navigator.serviceWorker.register('./sw.js').catch(()=>{});
-  });
-}
-
-// Intercept Android back button — push a history state so back doesn't close the app
+// Service worker + back button interception — both run on load
 window.addEventListener('load',()=>{
+  // Register PWA service worker
+  if('serviceWorker' in navigator){
+    navigator.serviceWorker.register('./sw.js').catch(()=>{});
+  }
+  // Push initial history state so Android back button can be intercepted
   history.pushState({page:'app'},'AFL Stat Tracker');
 });
-window.addEventListener('popstate',e=>{
-  // Push another state to prevent the back button from navigating away
+
+// Back button: close modals/settings instead of navigating away
+window.addEventListener('popstate',()=>{
   history.pushState({page:'app'},'AFL Stat Tracker');
-  // Close any open modals instead
   document.querySelectorAll('.modal-overlay.open').forEach(m=>m.classList.remove('open'));
-  // Close settings if open
   document.getElementById('settings-panel').classList.remove('open');
 });
 
