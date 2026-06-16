@@ -49,8 +49,8 @@ body { font-family: var(--font-sans); padding: 0; }
 }
 #timer-btn.running { background: rgba(255,255,255,0.25); }
 #timer-btn.overtime { color: #FFD700; }
-@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
-#timer-btn.pulsing { animation: pulse 0.6s ease-in-out infinite; }
+@keyframes flashRed { 0%,100%{background:rgba(255,255,255,0.15)} 50%{background:rgba(200,30,30,0.85)} }
+#timer-btn.flashing { animation: flashRed 0.5s ease-in-out 6; }
 .q-bar { display: flex; gap: 4px; margin-bottom: 8px; }
 .q-btn, .ft-btn {
   flex: 1; padding: 7px 2px; border-radius: var(--border-radius-md);
@@ -73,7 +73,7 @@ body { font-family: var(--font-sans); padding: 0; }
 .cbtn-plus { border-color: #0F6E56; color: #0F6E56; }
 .cbtn-minus { border-color: #993C1D; color: #993C1D; }
 .cbtn.disabled { opacity: 0.2; pointer-events: none; }
-.sval { font-size: 24px; font-weight: 500; color: var(--color-text-primary); flex: 1; text-align: center; font-variant-numeric: tabular-nums; display: flex; align-items: center; justify-content: center; height: 36px; }
+.sval { font-size: 30px; font-weight: 500; color: var(--color-text-primary); flex: 1; text-align: center; font-variant-numeric: tabular-nums; display: flex; align-items: center; justify-content: center; height: 36px; }
 .player-totals { background: var(--color-background-primary); border-radius: var(--border-radius-md); padding: 7px 8px; border: 0.5px solid var(--color-border-tertiary); }
 .totals-name { font-size: 11px; font-weight: 500; color: var(--color-text-primary); margin-bottom: 3px; }
 .totals-line { font-size: 11px; color: var(--color-text-secondary); line-height: 1.6; }
@@ -88,6 +88,10 @@ body { font-family: var(--font-sans); padding: 0; }
 .settings-panel.open { display: block; }
 .settings-section-title { font-size: 11px; font-weight: 500; color: var(--color-text-secondary); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px; margin-top: 14px; padding-bottom: 4px; border-bottom: 0.5px solid var(--color-border-tertiary); }
 .settings-section-title:first-child { margin-top: 0; }
+.settings-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 8px; }
+.settings-label { font-size: 13px; color: var(--color-text-primary); }
+.settings-number { width: 60px; padding: 5px 8px; border-radius: var(--border-radius-md); border: 0.5px solid var(--color-border-secondary); font-size: 14px; text-align: center; background: var(--color-background-primary); color: var(--color-text-primary); font-family: var(--font-sans); }
+.settings-sub-label { font-size: 11px; color: var(--color-text-secondary); margin-bottom: 6px; }
 .colour-block { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 10px; margin-top: 6px; }
 .colour-col { display: flex; flex-direction: column; align-items: center; gap: 6px; }
 .colour-col-label { font-size: 11px; color: var(--color-text-secondary); text-align: center; }
@@ -104,7 +108,6 @@ input[type=color] { width: 44px; height: 32px; border: 0.5px solid var(--color-b
 .log-entry { background: var(--color-background-primary); border: 0.5px solid var(--color-border-tertiary); border-radius: var(--border-radius-md); padding: 8px 10px; font-size: 11px; color: var(--color-text-secondary); margin-bottom: 6px; user-select: none; -webkit-user-select: none; transition: background 0.15s; }
 .log-entry.pressing { background: var(--color-background-tertiary); }
 .log-entry strong { color: var(--color-text-primary); font-weight: 500; }
-
 .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.45); display: none; align-items: center; justify-content: center; z-index: 1000; padding: 20px; }
 .modal-overlay.open { display: flex; }
 .modal-box { background: var(--color-background-primary); border-radius: var(--border-radius-lg); padding: 20px; max-width: 320px; width: 100%; text-align: center; }
@@ -114,7 +117,6 @@ input[type=color] { width: 44px; height: 32px; border: 0.5px solid var(--color-b
 .modal-actions button { flex: 1; padding: 10px; border-radius: var(--border-radius-md); border: 0.5px solid var(--color-border-secondary); background: var(--color-background-secondary); color: var(--color-text-primary); font-size: 13px; font-weight: 500; cursor: pointer; font-family: var(--font-sans); }
 .modal-actions .confirm-btn { background: #993C1D; color: #fff; border-color: #993C1D; }
 .modal-actions button:active { opacity: 0.8; }
-
 footer.credit { text-align:center; font-size:11px; color: var(--color-text-secondary); padding: 10px 0 24px; }
 .stat-setting-row { display: flex; align-items: center; gap: 8px; padding: 7px 0; border-bottom: 0.5px solid var(--color-border-tertiary); }
 .stat-setting-row:last-child { border-bottom: none; }
@@ -128,6 +130,8 @@ footer.credit { text-align:center; font-size:11px; color: var(--color-text-secon
 .stat-order-btn { background: none; border: 0.5px solid var(--color-border-secondary); border-radius: 5px; color: var(--color-text-secondary); font-size: 11px; cursor: pointer; padding: 2px 5px; line-height: 1; }
 .stat-order-btn:active { background: var(--color-background-tertiary); }
 .stat-order-btn:disabled { opacity: 0.2; pointer-events: none; }
+@keyframes flashRed { 0%,100%{background:rgba(255,255,255,0.15)} 50%{background:rgba(200,30,30,0.7)} }
+#timer-btn.flashing { animation: flashRed 0.5s ease-in-out 6; }
 </style>
 </head>
 <body>
@@ -169,28 +173,33 @@ footer.credit { text-align:center; font-size:11px; color: var(--color-text-secon
     <button class="icon-btn" id="settings-toggle" aria-label="Settings"><i class="ti ti-settings" aria-hidden="true"></i></button>
   </div>
   <div class="settings-panel" id="settings-panel">
+
     <div class="settings-section-title">Timer</div>
-    <div style="display:flex;flex-direction:column;gap:10px;margin-top:6px">
-      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
-        <span style="font-size:13px;color:var(--color-text-primary)">Quarter length (mins, 0 = stopwatch)</span>
-        <input type="number" id="quarter-mins" min="0" max="60" value="0" style="width:60px;padding:5px 8px;border-radius:var(--border-radius-md);border:0.5px solid var(--color-border-secondary);font-size:14px;text-align:center;background:var(--color-background-primary);color:var(--color-text-primary);" />
-      </div>
-      </div>
-      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
-        <span style="font-size:13px;color:var(--color-text-primary)">Sound at zero</span>
-        <button class="stat-toggle on" id="sound-toggle" aria-label="Toggle sound"></button>
-      </div>
+    <div class="settings-row">
+      <span class="settings-label">Quarter length (mins, 0 = stopwatch)</span>
+      <input type="number" id="quarter-mins" min="0" max="60" value="0" class="settings-number" />
     </div>
+    <div class="settings-row">
+      <span class="settings-label">Flash red at zero</span>
+      <button class="stat-toggle on" id="flash-toggle" aria-label="Toggle flash"></button>
+    </div>
+    <div class="settings-row">
+      <span class="settings-label">Sound at zero</span>
+      <button class="stat-toggle on" id="sound-toggle" aria-label="Toggle sound"></button>
+    </div>
+
     <div class="settings-section-title">Fantasy points</div>
-    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:6px">
-      <span style="font-size:13px;color:var(--color-text-primary)">Show fantasy points</span>
+    <div class="settings-row">
+      <span class="settings-label">Show fantasy points</span>
       <button class="stat-toggle on" id="fantasy-toggle" aria-label="Toggle fantasy points"></button>
     </div>
+
     <div class="settings-section-title">Stat timestamps</div>
-    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:6px">
-      <span style="font-size:13px;color:var(--color-text-primary)">Record timestamps per stat</span>
+    <div class="settings-row">
+      <span class="settings-label">Record timestamps per stat</span>
       <button class="stat-toggle on" id="timestamp-toggle" aria-label="Toggle timestamps"></button>
     </div>
+
     <div class="settings-section-title">Number of players/teams</div>
     <div class="player-count-row" id="pc-row">
       <button class="pc-btn" data-n="1">1</button>
@@ -199,20 +208,23 @@ footer.credit { text-align:center; font-size:11px; color: var(--color-text-secon
       <button class="pc-btn" data-n="4">4</button>
       <button class="pc-btn" data-n="5">5</button>
     </div>
+
     <div class="settings-section-title">Stats — toggle &amp; reorder</div>
     <div id="stat-settings"></div>
+
     <div class="settings-section-title">Colours</div>
-    <div style="font-size:11px;color:var(--color-text-secondary);margin-bottom:6px">Header &amp; inputs</div>
+    <div class="settings-sub-label">Header &amp; inputs</div>
     <div class="colour-block">
       <div class="colour-col"><div class="colour-col-label">Background</div><input type="color" id="c-input-bg" value="#003087" /></div>
       <div class="colour-col"><div class="colour-col-label">Text</div><input type="color" id="c-input-text" value="#ffffff" /></div>
     </div>
-    <div style="font-size:11px;color:var(--color-text-secondary);margin-top:10px;margin-bottom:6px">Fantasy cards</div>
+    <div class="settings-sub-label" style="margin-top:10px">Fantasy cards</div>
     <div class="colour-block">
       <div class="colour-col"><div class="colour-col-label">Background</div><input type="color" id="c-fantasy-bg" value="#FFD700" /></div>
       <div class="colour-col"><div class="colour-col-label">Text</div><input type="color" id="c-fantasy-text" value="#003087" /></div>
     </div>
     <div id="player-colour-settings"></div>
+
   </div>
 
   <div class="footer">
@@ -263,11 +275,12 @@ footer.credit { text-align:center; font-size:11px; color: var(--color-text-secon
 
 <script>
 // ---- Timer state ----
-let timerSeconds = 0; // default stopwatch mode
+let timerSeconds = 0;
 let timerRunning = false;
 let timerInterval = null;
-let quarterLengthMins = 0; // 0 = stopwatch by default
+let quarterLengthMins = 0;
 let soundEnabled = true;
+let flashEnabled = true;
 let fantasyEnabled = true;
 let timestampEnabled = true;
 
@@ -338,11 +351,11 @@ function tickTimer(){
   } else {
     timerSeconds--;
     if(wasPositive&&timerSeconds===0){
-      playBeep();
+      if(soundEnabled) playBeep();
       const btn=document.getElementById('timer-btn');
-      if(btn){
-        btn.classList.add('pulsing');
-        setTimeout(()=>{if(btn)btn.classList.remove('pulsing');},4000);
+      if(btn&&flashEnabled){
+        btn.classList.add('flashing');
+        setTimeout(()=>{if(btn)btn.classList.remove('flashing');},3000);
       }
     }
   }
@@ -367,7 +380,7 @@ function resetTimerToStart(){
   pauseTimer();
   timerSeconds=quarterLengthMins*60;
   const btn=document.getElementById('timer-btn');
-  if(btn)btn.classList.remove('pulsing','overtime');
+  if(btn)btn.classList.remove('flashing','overtime');
   updateTimerDisplay();
 }
 
@@ -415,7 +428,7 @@ let savedGames=[];
 let statLog=[]; // [{player, key, label, delta, stamp, q}]
 
 const STORAGE_KEY='aflStatTrackerState';
-const SETTINGS_VERSION=2; // bump this to force-reset settings when defaults change
+const SETTINGS_VERSION=3; // bump this to force-reset settings when defaults change
 
 function saveState(){
   try{
@@ -423,7 +436,7 @@ function saveState(){
       settingsVersion:SETTINGS_VERSION,
       currentQ,prevQ,numPlayers,playerColours,gameData,savedGames,
       statsConfig: STATS.map(s=>({key:s.key,enabled:s.enabled})),
-      timerSeconds,timerRunning:false,quarterLengthMins,soundEnabled,fantasyEnabled,timestampEnabled,
+      timerSeconds,timerRunning:false,quarterLengthMins,soundEnabled,flashEnabled,fantasyEnabled,timestampEnabled,
       statLog,
       round:document.getElementById('round-input')?document.getElementById('round-input').value:'',
       opp:document.getElementById('opp-input')?document.getElementById('opp-input').value:'',
@@ -733,6 +746,13 @@ document.getElementById('quarter-mins').addEventListener('change',e=>{
   saveState();
 });
 
+// ---- Flash toggle ----
+document.getElementById('flash-toggle').addEventListener('click',function(){
+  flashEnabled=!flashEnabled;
+  this.classList.toggle('on',flashEnabled);
+  saveState();
+});
+
 // ---- Sound toggle ----
 document.getElementById('sound-toggle').addEventListener('click',function(){
   soundEnabled=!soundEnabled;
@@ -965,10 +985,10 @@ if(saved){
     STATS=ordered;
   }
   if(!settingsUpgraded && saved.quarterLengthMins!==undefined) quarterLengthMins=saved.quarterLengthMins;
-  // On upgrade, keep quarterLengthMins at new default (0 = stopwatch)
-  if(saved.soundEnabled!==undefined) soundEnabled=saved.soundEnabled;
-  if(saved.fantasyEnabled!==undefined) fantasyEnabled=saved.fantasyEnabled;
-  if(saved.timestampEnabled!==undefined) timestampEnabled=saved.timestampEnabled;
+  if(!settingsUpgraded && saved.soundEnabled!==undefined) soundEnabled=saved.soundEnabled;
+  if(!settingsUpgraded && saved.flashEnabled!==undefined) flashEnabled=saved.flashEnabled;
+  if(!settingsUpgraded && saved.fantasyEnabled!==undefined) fantasyEnabled=saved.fantasyEnabled;
+  if(!settingsUpgraded && saved.timestampEnabled!==undefined) timestampEnabled=saved.timestampEnabled;
   if(!settingsUpgraded && saved.timerSeconds!==undefined) timerSeconds=saved.timerSeconds;
   else timerSeconds=quarterLengthMins*60;
   if(saved.gameData) gameData = saved.gameData;
@@ -1004,6 +1024,7 @@ if(saved){
 
 // Apply timer/sound/fantasy settings to UI
 document.getElementById('quarter-mins').value=quarterLengthMins;
+document.getElementById('flash-toggle').classList.toggle('on',flashEnabled);
 document.getElementById('sound-toggle').classList.toggle('on',soundEnabled);
 document.getElementById('fantasy-toggle').classList.toggle('on',fantasyEnabled);
 document.getElementById('timestamp-toggle').classList.toggle('on',timestampEnabled);
