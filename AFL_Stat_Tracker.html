@@ -68,12 +68,12 @@ body { font-family: var(--font-sans); padding: 0; }
 .stat-cell { background: var(--color-background-primary); border: 0.5px solid var(--color-border-tertiary); border-radius: var(--border-radius-md); padding: 4px; display: flex; flex-direction: column; align-items: center; gap: 2px; }
 .stat-lbl-txt { font-size: 9px; color: var(--color-text-secondary); text-transform: uppercase; letter-spacing: 0.03em; text-align: center; padding: 2px 0; }
 .stat-controls { display: flex; align-items: stretch; width: 100%; gap: 3px; }
-.cbtn { aspect-ratio: 1; flex: 0 0 auto; width: 36px; border-radius: var(--border-radius-md); border: 0.5px solid var(--color-border-secondary); background: var(--color-background-secondary); font-size: 16px; cursor: pointer; display: flex; align-items: center; justify-content: center; user-select: none; -webkit-user-select: none; transition: transform 0.08s; }
+.cbtn { aspect-ratio: 1; flex: 0 0 auto; width: 36px; height: 36px; border-radius: var(--border-radius-md); border: 0.5px solid var(--color-border-secondary); background: var(--color-background-secondary); font-size: 16px; cursor: pointer; display: flex; align-items: center; justify-content: center; user-select: none; -webkit-user-select: none; transition: transform 0.08s; }
 .cbtn:active { transform: scale(0.88); }
 .cbtn-plus { border-color: #0F6E56; color: #0F6E56; }
 .cbtn-minus { border-color: #993C1D; color: #993C1D; }
 .cbtn.disabled { opacity: 0.2; pointer-events: none; }
-.sval { font-size: 24px; font-weight: 500; color: var(--color-text-primary); flex: 1; text-align: center; font-variant-numeric: tabular-nums; display: flex; align-items: center; justify-content: center; }
+.sval { font-size: 24px; font-weight: 500; color: var(--color-text-primary); flex: 1; text-align: center; font-variant-numeric: tabular-nums; display: flex; align-items: center; justify-content: center; height: 36px; }
 .player-totals { background: var(--color-background-primary); border-radius: var(--border-radius-md); padding: 7px 8px; border: 0.5px solid var(--color-border-tertiary); }
 .totals-name { font-size: 11px; font-weight: 500; color: var(--color-text-primary); margin-bottom: 3px; }
 .totals-line { font-size: 11px; color: var(--color-text-secondary); line-height: 1.6; }
@@ -174,6 +174,7 @@ footer.credit { text-align:center; font-size:11px; color: var(--color-text-secon
       <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
         <span style="font-size:13px;color:var(--color-text-primary)">Quarter length (mins, 0 = stopwatch)</span>
         <input type="number" id="quarter-mins" min="0" max="60" value="0" style="width:60px;padding:5px 8px;border-radius:var(--border-radius-md);border:0.5px solid var(--color-border-secondary);font-size:14px;text-align:center;background:var(--color-background-primary);color:var(--color-text-primary);" />
+      </div>
       </div>
       <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
         <span style="font-size:13px;color:var(--color-text-primary)">Sound at zero</span>
@@ -283,11 +284,13 @@ function getStamp(){
 }
 
 function formatTime(s){
-  const neg=s<0;
+  // In stopwatch mode (quarterLengthMins===0), always count up from 0, never show +
+  // In countdown mode, show + prefix only when in overtime (negative seconds)
+  const showPlus = quarterLengthMins!==0 && s<0;
   const abs=Math.abs(s);
   const m=Math.floor(abs/60).toString().padStart(2,'0');
   const sec=(abs%60).toString().padStart(2,'0');
-  return (neg?'+':'')+m+':'+sec;
+  return (showPlus?'+':'')+m+':'+sec;
 }
 
 function playBeep(){
@@ -409,10 +412,12 @@ let savedGames=[];
 let statLog=[]; // [{player, key, label, delta, stamp, q}]
 
 const STORAGE_KEY='aflStatTrackerState';
+const SETTINGS_VERSION=2; // bump this to force-reset settings when defaults change
 
 function saveState(){
   try{
     const state={
+      settingsVersion:SETTINGS_VERSION,
       currentQ,prevQ,numPlayers,playerColours,gameData,savedGames,
       statsConfig: STATS.map(s=>({key:s.key,enabled:s.enabled})),
       timerSeconds,timerRunning:false,quarterLengthMins,soundEnabled,fantasyEnabled,timestampEnabled,
@@ -575,6 +580,8 @@ function buildUI(){
     d.innerHTML=`<div><div class="fantasy-lbl" id="fp-name-${p+1}" style="color:${gv('c-fantasy-text')}">Player ${p+1}</div><div class="fantasy-sub" style="font-size:9px;opacity:0.7;color:${gv('c-fantasy-text')}">fantasy pts</div></div><div class="fantasy-val" id="fp-${p+1}" style="color:${gv('c-fantasy-text')}">0</div>`;
     fa.appendChild(d);
   }
+  // Apply fantasy visibility immediately after rebuild
+  fa.style.display=fantasyEnabled?'':'none';
 
   for(let p=0;p<numPlayers;p++){
     const ni=document.getElementById(`p${p+1}-name`);
@@ -942,6 +949,8 @@ if(saved){
   currentQ = saved.currentQ ?? 0;
   prevQ = saved.prevQ ?? 0;
   numPlayers = saved.numPlayers ?? 2;
+  // If settings version has changed, reset timer defaults but keep game data
+  const settingsUpgraded = (saved.settingsVersion??1) < SETTINGS_VERSION;
   if(saved.statsConfig){
     const ordered=[];
     saved.statsConfig.forEach(cfg=>{
@@ -952,11 +961,12 @@ if(saved){
     STATS.forEach(s=>{if(!ordered.find(o=>o.key===s.key))ordered.push(s);});
     STATS=ordered;
   }
-  if(saved.quarterLengthMins!==undefined) quarterLengthMins=saved.quarterLengthMins;
+  if(!settingsUpgraded && saved.quarterLengthMins!==undefined) quarterLengthMins=saved.quarterLengthMins;
+  // On upgrade, keep quarterLengthMins at new default (0 = stopwatch)
   if(saved.soundEnabled!==undefined) soundEnabled=saved.soundEnabled;
   if(saved.fantasyEnabled!==undefined) fantasyEnabled=saved.fantasyEnabled;
   if(saved.timestampEnabled!==undefined) timestampEnabled=saved.timestampEnabled;
-  if(saved.timerSeconds!==undefined) timerSeconds=saved.timerSeconds;
+  if(!settingsUpgraded && saved.timerSeconds!==undefined) timerSeconds=saved.timerSeconds;
   else timerSeconds=quarterLengthMins*60;
   if(saved.gameData) gameData = saved.gameData;
   if(saved.savedGames) savedGames = saved.savedGames;
