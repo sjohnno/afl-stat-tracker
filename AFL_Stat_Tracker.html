@@ -275,14 +275,21 @@ footer.credit { text-align:center; font-size:11px; color: var(--color-text-secon
 
 <script>
 // ---- Timer state ----
+// timerSeconds = the displayed value (countdown remaining, or stopwatch elapsed)
+// timerStartedAt = real-world timestamp (ms) when the timer was last started/resumed
+// timerBaseSeconds = the value of timerSeconds at the moment it was started/resumed
+// Actual displayed time = timerBaseSeconds ± (now - timerStartedAt)/1000, direction depends on mode
 let timerSeconds = 0;
 let timerRunning = false;
 let timerInterval = null;
+let timerStartedAt = null;
+let timerBaseSeconds = 0;
 let quarterLengthMins = 0;
 let soundEnabled = true;
 let flashEnabled = true;
 let fantasyEnabled = true;
 let timestampEnabled = true;
+let sirenFiredAtZero = false; // tracks whether we've already played the siren for this countdown
 
 function getStamp(){
   if(!timestampEnabled)return null;
@@ -297,8 +304,6 @@ function getStamp(){
 }
 
 function formatTime(s){
-  // In stopwatch mode (quarterLengthMins===0), always count up from 0, never show +
-  // In countdown mode, show + prefix only when in overtime (negative seconds)
   const showPlus = quarterLengthMins!==0 && s<0;
   const abs=Math.abs(s);
   const m=Math.floor(abs/60).toString().padStart(2,'0');
@@ -310,23 +315,20 @@ function playBeep(){
   if(!soundEnabled)return;
   try{
     const ctx=new(window.AudioContext||window.webkitAudioContext)();
-    // Air horn: three blasts with a rich, loud tone
     [0, 1.1, 2.2].forEach(offset=>{
       const t=ctx.currentTime+offset;
-      // Layer two oscillators for a richer horn sound
       [220, 440].forEach((freq, i)=>{
         const osc=ctx.createOscillator();
         const gain=ctx.createGain();
         osc.connect(gain); gain.connect(ctx.destination);
         osc.type='sawtooth';
         osc.frequency.setValueAtTime(freq, t);
-        // Slight pitch drop at the end for realism
         osc.frequency.linearRampToValueAtTime(freq*0.92, t+0.8);
         const vol = i===0 ? 0.4 : 0.25;
         gain.gain.setValueAtTime(0, t);
-        gain.gain.linearRampToValueAtTime(vol, t+0.03); // sharp attack
+        gain.gain.linearRampToValueAtTime(vol, t+0.03);
         gain.gain.setValueAtTime(vol, t+0.7);
-        gain.gain.linearRampToValueAtTime(0, t+0.85); // quick fade
+        gain.gain.linearRampToValueAtTime(0, t+0.85);
         osc.start(t);
         osc.stop(t+0.9);
       });
@@ -342,23 +344,35 @@ function updateTimerDisplay(){
   btn.classList.toggle('overtime',timerSeconds<0);
 }
 
+// Recalculate timerSeconds from the real-world clock — call this whenever
+// we need the current accurate value, including after the tab/screen was backgrounded.
+function syncTimerFromClock(){
+  if(!timerRunning || timerStartedAt===null)return;
+  const elapsedSec = Math.floor((Date.now() - timerStartedAt) / 1000);
+  if(quarterLengthMins===0){
+    // Stopwatch — counts up from base
+    timerSeconds = timerBaseSeconds + elapsedSec;
+  } else {
+    // Countdown — counts down from base, goes negative into overtime
+    timerSeconds = timerBaseSeconds - elapsedSec;
+  }
+}
+
 function tickTimer(){
   if(!timerRunning)return;
-  const wasPositive=timerSeconds>0;
-  if(quarterLengthMins===0){
-    // Stopwatch mode — always count up
-    timerSeconds++;
-  } else {
-    timerSeconds--;
-    if(wasPositive&&timerSeconds===0){
-      if(soundEnabled) playBeep();
-      const btn=document.getElementById('timer-btn');
-      if(btn&&flashEnabled){
-        btn.classList.add('flashing');
-        setTimeout(()=>{if(btn)btn.classList.remove('flashing');},3000);
-      }
+  syncTimerFromClock();
+
+  // Fire siren/flash exactly once when crossing zero in countdown mode
+  if(quarterLengthMins!==0 && timerSeconds<=0 && !sirenFiredAtZero){
+    sirenFiredAtZero=true;
+    if(soundEnabled) playBeep();
+    const btn=document.getElementById('timer-btn');
+    if(btn&&flashEnabled){
+      btn.classList.add('flashing');
+      setTimeout(()=>{if(btn)btn.classList.remove('flashing');},3000);
     }
   }
+
   updateTimerDisplay();
   if(Math.abs(timerSeconds)%5===0)saveState();
 }
@@ -366,12 +380,18 @@ function tickTimer(){
 function startTimer(){
   if(timerInterval)clearInterval(timerInterval);
   timerRunning=true;
+  timerStartedAt=Date.now();
+  timerBaseSeconds=timerSeconds;
+  // Re-arm the zero-crossing alert only if we're starting from a positive time
+  if(quarterLengthMins!==0 && timerSeconds>0) sirenFiredAtZero=false;
   timerInterval=setInterval(tickTimer,1000);
   updateTimerDisplay();
 }
 
 function pauseTimer(){
+  syncTimerFromClock(); // capture exact time up to the moment of pausing
   timerRunning=false;
+  timerStartedAt=null;
   if(timerInterval){clearInterval(timerInterval);timerInterval=null;}
   updateTimerDisplay();
 }
@@ -379,10 +399,31 @@ function pauseTimer(){
 function resetTimerToStart(){
   pauseTimer();
   timerSeconds=quarterLengthMins*60;
+  timerBaseSeconds=timerSeconds;
+  sirenFiredAtZero=false;
   const btn=document.getElementById('timer-btn');
   if(btn)btn.classList.remove('flashing','overtime');
   updateTimerDisplay();
 }
+
+// When the page becomes visible again (screen turned back on, tab refocused),
+// immediately resync the timer to the real clock so it's never stale.
+document.addEventListener('visibilitychange', ()=>{
+  if(document.visibilityState==='visible' && timerRunning){
+    syncTimerFromClock();
+    // Check if we crossed zero while backgrounded and missed the alert
+    if(quarterLengthMins!==0 && timerSeconds<=0 && !sirenFiredAtZero){
+      sirenFiredAtZero=true;
+      if(soundEnabled) playBeep();
+      const btn=document.getElementById('timer-btn');
+      if(btn&&flashEnabled){
+        btn.classList.add('flashing');
+        setTimeout(()=>{if(btn)btn.classList.remove('flashing');},3000);
+      }
+    }
+    updateTimerDisplay();
+  }
+});
 
 let STATS=[
   {key:'kicks',        label:'Kicks',                  pts:3,  enabled:true},

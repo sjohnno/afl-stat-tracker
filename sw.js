@@ -1,4 +1,4 @@
-const CACHE_NAME = 'afl-stat-tracker-v5';
+const CACHE_NAME = 'afl-stat-tracker-v6';
 const ASSETS = [
   './AFL_Stat_Tracker.html',
   './manifest.json',
